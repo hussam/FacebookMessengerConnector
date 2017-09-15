@@ -52,3 +52,12 @@ module Callback =
             ok [||])
       ]
 
+
+   let parse data =
+     let res =
+       data
+       |> JsonValue.Parse
+       |> Callback.fromJson
+     match res with
+     | ParsingHelpers.ParseResult.Success cb -> Choice1Of2 cb
+     | ParsingHelpers.ParseResult.Error e -> Choice2Of2 e
