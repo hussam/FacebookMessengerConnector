@@ -1,143 +1,126 @@
-﻿namespace Pigeon
+﻿module Pigeon.SendAPI
 
-module SendAPI =
-   open FSharp.Data
-   open ParsingHelpers
+open Chiron
 
-   let inline private writeStringRecord key value =
-      JsonValue.Record [| (key, JsonValue.String value) |]
+let inline private jobj l = JsonObject.ofPropertyList l |> JsonObject.toJson
+module E = Chiron.Serialization.Json.Encode
+module EI = Chiron.Inference.Json.Encode
 
-   type Recipient =
-      | Id of string
-      | PhoneNumber of string
-
-      static member toJson (r : Recipient) =
-         match r with
-         | Id id -> writeStringRecord "id" id
-         | PhoneNumber pn -> writeStringRecord "phone_number" pn
-
-
-   type AttachmentPayload =
-      | Url of url:string * is_reusable:bool
-      | Id of string
-
-      static member toJson (ap : AttachmentPayload) =
-         match ap with
-         | Url (url, true) ->
-            []
-            ++ writeString "url" url
-            ++ writeBoolean "is_reusable" true
-            |> List.toArray
-            |> JsonValue.Record
-         | Url (url, false) ->
-            writeStringRecord "url" url
-         | Id id ->
-            writeStringRecord "attachment_id" id
+type Recipient =
+  | Id of string
+  | PhoneNumber of string
+  with
+  static member ToJson(r: Recipient) =
+    match r with
+    | Id i -> jobj [ "id", String i ]
+    | PhoneNumber pn -> jobj [ "phone_number", String pn ]
 
 
-   type Attachment =
-      | Image of AttachmentPayload
-      | Audio of AttachmentPayload
-      | Video of AttachmentPayload
-      | File of AttachmentPayload
-
-      static member toJson (a : Attachment) =
-         let properties =
-            match a with
-            | Image payload ->
-               [] ++ writeString "type" "image" ++ writeJson "payload" (AttachmentPayload.toJson payload)
-            | Audio payload ->
-               [] ++ writeString "type" "audio" ++ writeJson "payload" (AttachmentPayload.toJson payload)
-            | Video payload ->
-               [] ++ writeString "type" "video" ++ writeJson "payload" (AttachmentPayload.toJson payload)
-            | File payload ->
-               [] ++ writeString "type" "file" ++ writeJson "payload" (AttachmentPayload.toJson payload)
-         properties
-         |> List.toArray
-         |> JsonValue.Record
+type AttachmentPayload =
+  | Url of url:string * is_reusable:bool
+  | Id of string
+  with
+  static member ToJson(ap: AttachmentPayload) =
+    match ap with
+    | Url (url, true) -> jobj [ ("url", String url) ; ("is_reusable", True) ]
+    | Url (url, false) -> jobj [ "url", String url ]
+    | Id i -> jobj [ "attachment_id", String i ]
 
 
-   type QuickReply =
-      | Text of title:string * payload:string * image_url:string option
-      | Location
-
-      static member toJson (qr : QuickReply) =
-         match qr with
-         | Location ->
-            writeStringRecord "content_type" "location"
-         | Text (title, payload, image_url) ->
-            []
-            ++ writeString "content_type" "text"
-            ++ writeString "title" title
-            ++ writeString "payload" payload
-            +? opt (writeString "image_url") image_url
-            |> List.toArray
-            |> JsonValue.Record
-
-   type Message =
-      | Text of text:string * quick_replies:QuickReply[] option * metadata:string option
-      | Attachment of attachment:Attachment * quick_replies:QuickReply[] option * metadata:string option
-
-      static member toJson (m : Message) =
-         let properties =
-            match m with
-            | Text (text, quick_replies, metadata) ->
-               []
-               ++ writeString "text" text
-               +? opt (writeArray "quick_replies" QuickReply.toJson) quick_replies
-               +? opt (writeString "metadata") metadata
-            | Attachment (attachment, quick_replies, metadata) ->
-               []
-               ++ writeJson "attachment" (Attachment.toJson attachment)
-               +? opt (writeArray "quick_replies" QuickReply.toJson) quick_replies
-               +? opt (writeString "metadata") metadata
-         properties
-         |> List.toArray
-         |> JsonValue.Record
+type Attachment =
+  | Image of AttachmentPayload
+  | Audio of AttachmentPayload
+  | Video of AttachmentPayload
+  | File of AttachmentPayload
+  with
+  static member ToJson (a: Attachment) =
+    let t,p =
+      match a with
+      | Image p -> "image", p
+      | Audio p -> "audio", p
+      | Video p -> "video", p
+      | File p -> "file", p
+    JsonObject.empty
+    |> EI.required "type" t
+    |> EI.required "payload" p
+    |> JsonObject.toJson
 
 
+type QuickReply =
+  | Text of title:string * payload:string * image_url:string option
+  | Location
+  with
+  static member ToJson (qr: QuickReply) =
+    match qr with
+    | Location ->
+      jobj ["content_type", String "location"]
+    | Text (t, p, i) ->
+      JsonObject.empty
+      |> EI.required "content_type" "text"
+      |> EI.required "title" t
+      |> EI.required "payload" p
+      |> EI.optional "image_url" i
+      |> JsonObject.toJson
 
 
-   type NotificationType =
-      | RegularPush
-      | SilentPush
-      | NoPush
-
-      static member toJson (n : NotificationType) =
-         match n with
-         | RegularPush -> JsonValue.String "REGULAR"
-         | SilentPush -> JsonValue.String "SILENT_PUSH"
-         | NoPush -> JsonValue.String "NO_PUSH"
-
-
-   type SenderAction =
-      | MarkAsSeen
-      | TypingOn
-      | TypingOff
-
-      static member toJson (sa : SenderAction) =
-         match sa with
-         | MarkAsSeen -> JsonValue.String "mark_seen"
-         | TypingOn -> JsonValue.String "typing_on"
-         | TypingOff -> JsonValue.String "typing_off"
+type Message =
+  | Text of text:string * quick_replies:QuickReply[] option * metadata:string option
+  | Attachment of attachment:Attachment * quick_replies:QuickReply[] option * metadata:string option
+  with
+  static member ToJson (m: Message) =
+    match m with
+    | Text (t, qrs, md) ->
+      JsonObject.empty
+      |> EI.required "text" t
+      |> EI.optional "quick_replies" qrs
+      |> EI.optional "metadata" md
+      |> JsonObject.toJson
+    | Attachment (a, qrs, md) ->
+      JsonObject.empty
+      |> EI.required "attachment" a
+      |> EI.optional "quick_replies" qrs
+      |> EI.optional "metadata" md
+      |> JsonObject.toJson
 
 
-   type Request =
-      | Message of Recipient * Message * NotificationType option
-      | SenderAction of Recipient * SenderAction
+type NotificationType =
+  | RegularPush
+  | SilentPush
+  | NoPush
+  with
+  static member ToJson (nt: NotificationType) =
+    match nt with
+    | RegularPush -> String "REGULAR"
+    | SilentPush -> String "SILENT_PUSH"
+    | NoPush -> String "NO_PUSH"
 
-      static member toJson (r : Request) =
-         match r with
-         | Message (recipient, message, notification_type) ->
-            []
-            ++ writeJson "recipient" (Recipient.toJson recipient)
-            ++ writeJson "message" (Message.toJson message)
-            +? opt (writeJson "notification_type") (opt NotificationType.toJson notification_type)
-            |> List.toArray
-            |> JsonValue.Record
-         | SenderAction (recipient, sender_action) ->
-            []
-            ++ writeJson "recipient" (Recipient.toJson recipient)
-            ++ writeJson "sender_action" (SenderAction.toJson sender_action)
-            |> List.toArray
-            |> JsonValue.Record
+
+type SenderAction =
+  | MarkAsSeen
+  | TypingOn
+  | TypingOff
+  with
+  static member ToJson (sa: SenderAction) =
+    match sa with
+    | MarkAsSeen -> String "mark_seen"
+    | TypingOn -> String "typing_on"
+    | TypingOff -> String "typing_off"
+
+
+type Request =
+  | Message of Recipient * Message * NotificationType option
+  | SenderAction of Recipient * SenderAction
+  with
+  static member ToJson (r: Request) =
+    match r with
+    | Message (r, m, nt) ->
+      JsonObject.empty
+      |> EI.required "recipient" r
+      |> EI.required "message" m
+      |> EI.optional "notification_type" nt
+      |> JsonObject.toJson
+    | SenderAction (r, sa) ->
+      JsonObject.empty
+      |> EI.required "recipient" r
+      |> EI.required "sender_action" sa
+      |> JsonObject.toJson

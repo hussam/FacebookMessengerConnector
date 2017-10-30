@@ -1,126 +1,93 @@
-﻿namespace Pigeon
+﻿module Pigeon.CallbackAPI
 
-module CallbackAPI =
-   open FSharp.Data
-   open ParsingHelpers
+open Chiron
+open Chiron.Operators
 
+module D = Chiron.Serialization.Json.Decode
+module DI = Chiron.Inference.Json.Decode
 
-   type Attachment =
-      | Image of string
-      | Audio of string
-      | Video of string
-      | File of string
-      | Coordinates of lat:decimal * long:decimal
-
-   type Message = {
-      mid : string
-      seq : int
-      text : string option
-      quick_reply : string option
-      attachments : Attachment[] option
-   }
-
-   type MessagingEvent = {
-      sender : string
-      recipient : string
-      timestamp : int64
-      message : Message option
-      postback : string option
-      optin : string option
-   }
-
-   type Entry = {
-      id : string
-      time : int64
-      messagingEvents : MessagingEvent[]
-   }
-
-   type Callback = {
-      Object : string
-      Entries : Entry[]
-   }
+type Attachment =
+  | Image of string
+  | Audio of string
+  | Video of string
+  | File of string
+  with
+  static member FromJson (_:Attachment) = jsonDecoder {
+    let! x = DI.required "type"
+    let multimediaPayload =
+      D.required (D.jsonObject >=> DI.required "url") "payload"
+    match x with  // handle location, fallback, and bad types
+    | "image" -> return! (multimediaPayload >-> Image)
+    | "audio" -> return! (multimediaPayload >-> Audio)
+    | "video" -> return! (multimediaPayload >-> Video)
+    | "file" -> return! (multimediaPayload >-> File)
+  }
 
 
-   let private readStringRecord key json =
-      (Success (fun v -> v))
-      >>= readString json key
-
-   let inline private readPayload json =
-      readStringRecord "payload" json
-
-
-   let private readId json =
-      (Success (fun i -> i))
-      >>= readString json "id"
-
-
-
-   type Attachment with
-      static member fromJson (json : JsonValue) =
-         let urlPayloadFromJson (json : JsonValue) =
-            let f url = url
-            (Success f)
-            >>= readString json "url"
-
-         let coordinatesPayloadFromJson (json : JsonValue) =
-            let f lat long = (lat, long)
-            (Success f)
-            >>= readDecimal json "coordinates.lat"
-            >>= readDecimal json "coordinates.long"
-
-         match readString json "type"(fun x -> x) with
-         | Success "image" ->  readRecord json "payload" urlPayloadFromJson (fun url -> Image url)
-         | Success "audio" ->  readRecord json "payload" urlPayloadFromJson (fun url -> Audio url)
-         | Success "video" ->  readRecord json "payload" urlPayloadFromJson (fun url -> Video url)
-         | Success "file" ->   readRecord json "payload" urlPayloadFromJson (fun url -> File url)
-         | Success "coordinates" ->  readRecord json "payload" coordinatesPayloadFromJson (fun coordinates -> Coordinates coordinates)
-         | Success _ -> Error (UnexpectedValueForField "type")
-         | Error e -> Error e
+type Message = {
+  MessageId : string
+  Text : string option
+  QuickReply : string option
+  Attachments : Attachment[] option
+} with
+  static member FromJson (_:Message) = jsonDecoder {
+    let! mid = DI.required "mid"
+    let! text = DI.optional "text"
+    let! qr = DI.optional "quick_reply"
+    let! attachments = DI.optional "attachments"
+    return {
+      MessageId = mid
+      Text = text
+      QuickReply = qr
+      Attachments = attachments
+    }
+  }
 
 
-   type Message with
-      static member fromJson (json : JsonValue) =
-         let f mid seq text quick_reply attachments =
-            { mid = mid; seq = int seq; text = text; quick_reply = quick_reply; attachments = attachments }
-
-         (Success f)
-         >>= readString json "mid"
-         >>= readDecimal json "seq"
-         >>= readOptionalString json "text"
-         >>= readOptionalRecord json "quick_reply" readPayload
-         >>= readOptionalArray json "attachment" Attachment.fromJson
-
-
-   type MessagingEvent with
-      static member fromJson (json : JsonValue) =
-         let f sender recipient timestamp message postback optin =
-            { sender = sender ; recipient = recipient; timestamp = (int64 timestamp); message = message; postback = postback; optin = optin }
-
-         (Success f)
-         >>= readRecord json "sender" readId
-         >>= readRecord json "recipient" readId
-         >>= readDecimal json "timestamp"
-         >>= readOptionalRecord json "message" Message.fromJson
-         >>= readOptionalRecord json "postback" readPayload
-         >>= readOptionalRecord json "optin" (readStringRecord "ref")
+type MessagingEvent = {
+  Sender : string
+  Recipient : string
+  Message : Message option
+} with
+  static member FromJson (_:MessagingEvent) = jsonDecoder {
+    let! s = D.required (D.jsonObjectWith (D.required D.string "id")) "sender"
+    let! r = D.required (D.jsonObjectWith (D.required D.string "id")) "recipient"
+    let! m = DI.optional "message"
+    return {
+      Sender = s
+      Recipient = r
+      Message = m
+    }
+  }
 
 
-   type Entry with
-      static member fromJson (json : JsonValue) =
-         let f id time messagingEvents =
-            {id = id; time = (int64 time); messagingEvents = messagingEvents}
+type Entry = {
+  PageId : string
+  Time : int64
+  MessagingEvents : MessagingEvent[]
+} with
+  static member FromJson (_:Entry) = jsonDecoder {
+    let! pid = D.required D.string "id"
+    let! time = D.required D.int64 "time"
+    let! mes = DI.required "messaging"
+    return {
+      PageId = pid
+      Time = time
+      MessagingEvents = mes
+    }
+  }
 
-         (Success f)
-         >>= readString json "id"
-         >>= readDecimal json "time"
-         >>= readArray json "messaging" MessagingEvent.fromJson
 
-
-   type Callback with
-      static member fromJson (json : JsonValue) =
-         let f o entries =
-            {Object = o; Entries = entries}
-
-         (Success f)
-         >>= readString json "object"
-         >>= readArray json "entry" Entry.fromJson
+type Callback = {
+  Object : string
+  Entries : Entry[]
+} with
+  static member Parse str : JsonResult<Callback> = Chiron.Inference.Json.deserialize str
+  static member FromJson (_:Callback) = jsonDecoder {
+    let! o = D.required D.string "object"
+    let! es = DI.required "entry"
+    return {
+      Object = o
+      Entries = es
+    }
+  }
