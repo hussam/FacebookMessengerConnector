@@ -1,4 +1,4 @@
-﻿namespace FacebookMessengerConnector
+﻿namespace Pigeon
 
 module ParsingHelpers =
    open FSharp.Data

@@ -8,9 +8,9 @@
 
 
 
-open FacebookMessengerConnector
-open FacebookMessengerConnector.CallbackAPI
-open FacebookMessengerConnector.SendAPI
+open Pigeon
+open Pigeon.CallbackAPI
+open Pigeon.SendAPI
 open Suave
 
 

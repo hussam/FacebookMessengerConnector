@@ -1,4 +1,4 @@
-﻿namespace FacebookMessengerConnector.AssemblyInfo
+﻿namespace Pigeon.AssemblyInfo
 
 open System.Reflection
 open System.Runtime.CompilerServices
@@ -7,11 +7,11 @@ open System.Runtime.InteropServices
 // General Information about an assembly is controlled through the following
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[<assembly: AssemblyTitle("FacebookMessengerConnector")>]
+[<assembly: AssemblyTitle("Pigeon")>]
 [<assembly: AssemblyDescription("")>]
 [<assembly: AssemblyConfiguration("")>]
 [<assembly: AssemblyCompany("")>]
-[<assembly: AssemblyProduct("FacebookMessengerConnector")>]
+[<assembly: AssemblyProduct("Pigeon")>]
 [<assembly: AssemblyCopyright("Copyright ©  2016")>]
 [<assembly: AssemblyTrademark("")>]
 [<assembly: AssemblyCulture("")>]

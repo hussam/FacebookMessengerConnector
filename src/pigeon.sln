@@ -1,7 +1,7 @@
 
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2012
-Project("{f2a71f9b-5d33-465a-a702-920d77279786}") = "FacebookMessengerConnector", "FacebookMessengerConnector.fsproj", "{C03A2FED-2DBB-4545-A002-ABF40FFB1DC1}"
+Project("{f2a71f9b-5d33-465a-a702-920d77279786}") = "pigeon", "pigeon.fsproj", "{C03A2FED-2DBB-4545-A002-ABF40FFB1DC1}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

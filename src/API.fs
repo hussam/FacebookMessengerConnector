@@ -1,4 +1,4 @@
-﻿namespace FacebookMessengerConnector
+﻿namespace Pigeon
 
 [<RequireQualifiedAccess>]
 module Request =
